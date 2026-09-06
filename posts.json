@@ -1,0 +1,13 @@
+[
+  {
+    "slug": "regret-greedy",
+    "fig": "FIG.001",
+    "title": "一口气看完 80% 反悔贪心",
+    "date": "2026-08-11",
+    "category": "算法",
+    "tags": ["贪心", "反悔贪心", "费用流", "堆"],
+    "status": "published",
+    "origin": "https://www.luogu.com.cn/article/fgdmje7p",
+    "summary": "反悔贪心的本质是把互相干涉的物品转化成互不干涉的收益。从「哪些方案能让选择数 +1」这一句话出发，串起工作安排、背包反悔、不相邻种树、多状态转移、括号收益、破圈算法与 SPFA 反向负权边。"
+  }
+]

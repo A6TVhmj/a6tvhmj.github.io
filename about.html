@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>关于 — A6TVhmj</title>
+<script>(function(){var t=localStorage.getItem('bp-theme')||(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+
+<main class="wrap">
+
+  <section>
+    <div id="h"></div>
+    <div class="prose">
+      <p>我是 <strong>A6TVhmj</strong>，一名初中生。写算法，也造工具。</p>
+
+      <h2>为什么造东西</h2>
+
+      <p>技术是无形的。你看不见代码运行时穿梭的电信号，就像看不见风——但你能看到树叶摇动、海浪翻滚。一段脚本悄无声息地跑完，几百次机械的点击就消失了。东西本身看不见，刮过现实的时候却实打实。</p>
+
+      <p>我喜欢这种落差，所以做东西的顺序永远一样：先撞上一个具体的麻烦——魔方状态记不全、想在本地假装有台服务器、每天要重复点一堆按钮——然后动手把它解决掉。<a href="projects.html">项目页</a>上每一个都是这么来的，没有一个是为了练手而写的。</p>
+
+      <p>抱怨那件事无聊，和写个程序让它不再需要人做，中间隔着的就是动手那一下。我更愿意做后者。</p>
+
+      <h2>关于「有科技」</h2>
+
+      <p>我说的科技，不是发布会上那个词，是解决实际问题的黑活。是把整套剪枝表从几百 MB 压到 3.6&nbsp;MB 还得跑得一样快，是让残缺状态补全别在组合爆炸里卡死，是修那些「理论上不该发生」的兼容性问题。</p>
+
+      <p>这些活不好看，写进简介也没人懂，但它们才是分界线。我的东西不只是自己跑得通——身边真的有人在用，而且是每天都要用的那种。这时候标准就变了：崩一次不是「有个 bug」，是别人当场用不了。</p>
+
+      <p>工具做到六十分很容易，剩下四十分全是这种活。</p>
+
+      <h2>关于算法</h2>
+
+      <p>我打 OI，但得说实话：真正吃透、能系统讲出来的只有<strong>反悔贪心</strong>这一块。所以这个站的笔记不会多——不是所有学过的东西都值得写成归纳笔记，只有当我确信自己摸到了贯穿几十道题的那根辅助线时，才动笔。</p>
+
+      <p>反悔贪心那篇就是这么来的。从黄到黑几十道题，本质都在回答同一个问题：<em>哪些方案能让选择数加一，收益是多少？</em> 把这句话想透，剩下的都是数据结构的选择题。</p>
+
+      <div id="find"></div>
+    </div>
+  </section>
+
+</main>
+
+
+<footer id="footer"></footer>
+
+<script src="assets/app.js"></script>
+<script>
+renderChrome('about.html');
+
+
+document.getElementById('h').innerHTML = dimHeading('关于');
+
+document.getElementById('find').innerHTML =
+  '<h2>在哪能找到我</h2>' +
+  '<ul>' +
+    '<li>GitHub — <a href="https://github.com/A6TVhmj" target="_blank" rel="noopener">@A6TVhmj</a></li>' +
+    '<li>洛谷 — <a href="https://www.luogu.com.cn/user/1446817" target="_blank" rel="noopener">A6TVhmj</a></li>' +
+  '</ul>';
+</script>
+</body>
+</html>

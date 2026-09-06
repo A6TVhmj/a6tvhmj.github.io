@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>笔记 — A6TVhmj</title>
+<script>(function(){var t=localStorage.getItem('bp-theme')||(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+
+<main class="wrap">
+
+  <section>
+    <div id="h"></div>
+
+    <p class="measure" style="margin-top:-8px;margin-bottom:28px;color:var(--dim)">不是所有学过的东西都值得写成归纳笔记。只有当一堆散题背后那根辅助线真的被我找到时，才动笔——所以这里更新得很慢。</p>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+      <input class="input" id="q" style="flex:1;min-width:200px" placeholder="SEARCH / 搜索标题、摘要、标签" autocomplete="off">
+    </div>
+    <div id="filters" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px"></div>
+
+    <div id="list"></div>
+  </section>
+
+</main>
+
+
+<footer id="footer"></footer>
+
+<script src="assets/app.js"></script>
+<script>
+renderChrome('posts.html');
+document.getElementById('h').innerHTML = dimHeading('全部笔记');
+
+var ALL = [], CAT = '全部';
+
+function draw() {
+  var q = document.getElementById('q').value.trim().toLowerCase();
+  var out = ALL.filter(function (p) {
+    if (CAT !== '全部' && p.category !== CAT) return false;
+    if (!q) return true;
+    var hay = (p.title + ' ' + (p.summary || '') + ' ' + (p.tags || []).join(' ')).toLowerCase();
+    return hay.indexOf(q) !== -1;
+  });
+  document.getElementById('list').innerHTML = out.length
+    ? out.map(postRow).join('')
+    : '<p class="mono" style="color:var(--silver-ink);font-size:13px">NO MATCH.</p>';
+}
+
+function drawFilters() {
+  var cats = ['全部'];
+  ALL.forEach(function (p) {
+    if (p.category && cats.indexOf(p.category) === -1) cats.push(p.category);
+  });
+  document.getElementById('filters').innerHTML = cats.map(function (c) {
+    var on = c === CAT;
+    return '<button type="button" class="tag ' + (on ? 'done' : 'draft') +
+      '" style="cursor:pointer;background:transparent" data-c="' + c + '">' + c + '</button>';
+  }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('#filters button'), function (b) {
+    b.onclick = function () { CAT = b.getAttribute('data-c'); drawFilters(); draw(); };
+  });
+}
+
+document.getElementById('q').addEventListener('input', draw);
+
+loadPosts().then(function (list) {
+  ALL = list;
+  // 文章少时不显示搜索和筛选，避免空架子
+  if (list.length < 5) {
+    document.getElementById('q').parentNode.style.display = 'none';
+    document.getElementById('filters').style.display = 'none';
+  } else {
+    drawFilters();
+  }
+  draw();
+});
+</script>
+</body>
+</html>

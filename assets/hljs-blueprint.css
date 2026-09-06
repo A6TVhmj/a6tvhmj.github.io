@@ -1,0 +1,15 @@
+/* highlight.js 配色 — 蓝图手记（恒深底 #122a44，冷色，无暖调） */
+.hljs { background: transparent; color: #cfe2f7; }
+.hljs-comment, .hljs-quote { color: #7e97b3; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-type { color: #6db0f0; }
+.hljs-string, .hljs-meta .hljs-string { color: #9fd0c4; }
+.hljs-number, .hljs-symbol { color: #b7c6ff; }
+.hljs-title, .hljs-title.function_, .hljs-section { color: #ffffff; font-weight: 600; }
+.hljs-title.class_, .hljs-built_in { color: #a9bacf; }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: #cfe2f7; }
+.hljs-meta { color: #8fa9c6; }
+.hljs-operator, .hljs-punctuation { color: #a9bacf; }
+.hljs-deletion { color: #d68ca0; }
+.hljs-addition { color: #9fd0c4; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
