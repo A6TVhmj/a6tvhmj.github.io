@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>项目 — A6TVhmj</title>
+<script>(function(){var t=localStorage.getItem('bp-theme')||(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+/* ============================================================
+   径向索引盘
+   辐条 .spoke 是不可见骨架：宽 = 半径、高 = 0，绕圆心旋转，
+   把末端节点甩到弧上。圆心推到舞台左外，弧线向右凸。
+   卡槽环形复用，可无限循环。
+   ============================================================ */
+
+/* 高度固定，避免不同项目文案长短导致整框跳动 */
+/* 索引盘的尺寸源：其余数值全部由这几个推出，不再各处手算 */
+.dial-layout {
+  /* 圆框直径由 JS 按实测盘高写入（见 measure），
+     这里只给初值，避免首帧无值 */
+  --disc: 68px;
+  --disc-on: 92px;
+  --nm-gap: 6px;         /* 名称与圆框的间距 */
+  /* 栏宽跟着圆框走，宽屏时多出的空间归盘面，弧线更舒展 */
+  --dial-col: 300px;
+
+  display: grid;
+  grid-template-columns: 1fr var(--dial-col);
+  border: 1px solid var(--line);
+  /* 下限跟着视口走，横屏矮设备不会撑出屏幕 */
+  /* 固定高度：整框大小不随视口浮动，
+     矮屏由下方媒体查询按档位跳变，而非连续拉伸。
+     每档 = 视口 − 205px（页眉页脚与标题所占） */
+  height: 560px;
+}
+
+/* ---------- 左：主体 ---------- */
+.detail {
+  padding: 34px 40px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;                    /* 文案再长也不撑破固定高度 */
+}
+/* 宽屏下正文不跟着容器一起变宽，保持易读行长 */
+.detail > .inner { width: 100%; max-width: 620px; }
+.detail h3 { font-size: 30px; margin-bottom: 6px; line-height: 1.2; }
+.detail .sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: .14em;
+  color: var(--silver-ink);
+  margin-bottom: 20px;
+}
+.detail p { font-size: 15.5px; line-height: 1.75; margin: 0 0 16px; max-width: 46ch; }
+.detail ul {
+  font-size: 14.5px; line-height: 1.7;
+  padding-left: 18px; margin: 0 0 20px; max-width: 46ch;
+}
+.detail li { margin: 6px 0; }
+
+/* 详情随盘面转动交叉淡入：先退后进，位移 3px 以内 */
+.detail .inner {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 180ms linear, transform 180ms cubic-bezier(.22,.61,.36,1);
+}
+.detail .inner.out { opacity: 0; transform: translateY(-3px); }
+.detail .inner.in  { opacity: 0; transform: translateY(3px); }
+
+/* ---------- 右：盘 ---------- */
+.stage {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(var(--grid-fine) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-fine) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.stage:focus-visible { outline: 1px solid var(--link); outline-offset: -1px; }
+
+/* 轨迹：制图上的构造线 */
+.track { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.track .rail { fill: none; stroke: var(--silver-line); stroke-width: 1; }
+.track .rail-dash {
+  fill: none; stroke: var(--silver-line); stroke-width: 1;
+  stroke-dasharray: 2 6; opacity: .7;
+}
+.track .gauge { stroke: var(--line); stroke-width: 1; }
+.track .gauge.major { stroke: var(--line-strong); }
+
+.circle {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.spoke {
+  position: absolute;
+  top: 0; left: 0;
+  height: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+/* 节点：圆形图标框，名称绝对定位挂在框下。
+   定位以 disc 中心为准，保证图标始终压在辐条端点（刻度线）上 */
+.node {
+  position: absolute;
+  right: 0; top: 0;
+  transform: translate(50%, -50%);
+  pointer-events: auto;
+  display: block;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 200ms linear;
+  /* 尺寸恒定为选中态，避免布局跳动 */
+  width: var(--disc-on);
+  height: var(--disc-on);
+}
+.node.show { opacity: 1; }
+
+.node .disc {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: var(--disc);
+  height: var(--disc);
+  /* 以自身中心对齐辐条端点，偏移由直径推出，改尺寸不必手算 */
+  margin: calc(var(--disc) / -2) 0 0 calc(var(--disc) / -2);
+  border-radius: 50%;
+  border: 1px dashed var(--silver-line);
+  background: var(--bg);
+  overflow: hidden;
+  transition: width 260ms cubic-bezier(.22,.61,.36,1),
+              height 260ms cubic-bezier(.22,.61,.36,1),
+              margin 260ms cubic-bezier(.22,.61,.36,1),
+              border-color 180ms linear, border-style 180ms linear;
+}
+/* 图标铺满圆框，超出部分由圆形裁掉 */
+.node .disc img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: saturate(.4) opacity(.72);
+  transition: filter 180ms linear;
+}
+.node .nm {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translateX(-50%);
+  margin-top: calc(var(--disc) / 2 + var(--nm-gap));  /* 贴着圆框下沿 */
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: .08em;
+  color: var(--dim);
+  transition: color 180ms linear, font-size 260ms cubic-bezier(.22,.61,.36,1),
+              margin-top 260ms cubic-bezier(.22,.61,.36,1);
+  white-space: nowrap;
+}
+
+.node:hover .disc { border-color: var(--line-strong); border-style: solid; }
+.node:hover .disc img { filter: saturate(.8) opacity(.95); }
+.node:hover .nm { color: var(--body); }
+
+/* 选中：圆框放大、实线白墨、图标全彩 */
+.node.on { cursor: default; }
+.node.on .disc {
+  width: var(--disc-on);
+  height: var(--disc-on);
+  margin: calc(var(--disc-on) / -2) 0 0 calc(var(--disc-on) / -2);
+  border-style: solid;
+  border-color: var(--ink);
+  border-width: 2px;
+}
+.node.on .disc img { filter: none; }
+.node.on .nm {
+  color: var(--ink);
+  font-size: 14px;
+  margin-top: calc(var(--disc-on) / 2 + var(--nm-gap));
+}
+
+/* 指针 */
+.pointer {
+  position: absolute;
+  left: 0; top: 50%;
+  width: 30px; height: 0;
+  border-top: 1px dashed var(--silver-line);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circle, .node, .node .disc, .node .disc img, .node .nm, .detail .inner {
+    transition: none !important;
+  }
+  .detail .inner.out, .detail .inner.in { opacity: 1; transform: none; }
+}
+
+/* 矮屏一次性降档，而非跟着视口连续缩放——
+   尺寸只有「标准」与「紧凑」两种，视口微动时观感不变 */
+@media (max-height: 764px) { .dial-layout { height: 480px; } }
+@media (max-height: 684px) { .dial-layout { height: 430px; } }
+@media (max-height: 634px) { .dial-layout { height: 380px; } }
+
+/* 矮屏一并收紧文字，避免正文挤满整框 */
+@media (max-height: 764px) {
+  .detail { padding: 24px 30px; }
+  .detail h3 { font-size: 24px; }
+  .detail .sub { margin-bottom: 14px; }
+  .detail p { font-size: 14px; margin: 0 0 12px; }
+  .detail ul { font-size: 13px; margin: 0 0 14px; }
+  .detail li { margin: 4px 0; }
+}
+
+/* 索引盘是横向双栏，且沿垂直弧线排布，需要宽度与高度。
+   竖屏两者都不够（左右挤不下正文，上下装不下五个卡位），
+   故仅在竖屏退回卡片列表；横屏无论屏幕多小都保留索引盘。 */
+.fallback { display: none; }
+@media (orientation: portrait) {
+  .dial-layout { display: none; }
+  .fallback { display: block; }
+}
+</style>
+</head>
+<body class="wide">
+
+<header class="topbar" id="topbar"></header>
+
+<main class="wrap">
+
+  <section>
+    <div id="h"></div>
+
+    <div class="dial-layout">
+      <div class="detail" id="detail"></div>
+
+      <div class="stage" id="stage" tabindex="0" role="listbox" aria-label="项目索引盘">
+        <svg class="track" id="track" aria-hidden="true"></svg>
+        <div class="circle" id="circle"></div>
+        <div class="pointer"></div>
+      </div>
+    </div>
+
+    <div class="stack fallback" id="list"></div>
+  </section>
+
+</main>
+
+
+<footer id="footer"></footer>
+
+<script src="assets/app.js"></script>
+<script src="assets/projects.js"></script>
+<script>
+renderChrome('projects.html');
+document.getElementById('h').innerHTML =
+  dimHeading('造过的东西', '源于真撞上的麻烦，且真的有人在用。');
+document.getElementById('list').innerHTML = PROJECTS.map(projectCard).join('');
+
+var items  = PROJECTS;
+var N      = items.length;
+var stage  = document.getElementById('stage');
+var circle = document.getElementById('circle');
+var layout = document.querySelector('.dial-layout');
+
+/* ---------- 设计意图：只有这三个是「选择」，其余都是推导 ---------- */
+var BOW    = 0.26;  // 弧势：半高处内缩占半高的比例
+/* 指针两侧各显示几个。卡槽总数 2*NEAR+1 必须 ≤ 项目数，
+   否则环形取模会让同一个项目同时出现在两端。
+   4 个项目 → NEAR=1（显示 3 个）；6 个及以上 → NEAR=2（显示 5 个）。 */
+var NEAR   = Math.min(2, Math.floor((PROJECTS.length - 1) / 2));
+var EDGE   = 1.02;  // 选中圆与左缘的距离，以选中圆直径为单位
+var NAME_H = 22;    // 圆框下名称所占高度，计算可视范围时要算进去
+var PACK   = 0.62;  // 选中圆直径占间距的比例，其余留作净空
+
+var R, STEP, SLOTS, GAP, NODE_X, DISC, DISC_ON;
+var MAX_DISC, MAX_DISC_ON;   // 直径上限，取自 CSS，避免两处各写一份
+
+/* 读 CSS 变量，保证 JS 与样式共用同一组尺寸 */
+function cssPx(name, fallback) {
+  var v = getComputedStyle(layout).getPropertyValue(name);
+  var n = parseFloat(v);
+  return isNaN(n) ? fallback : n;
+}
+
+/* 样式表里的 --disc / --disc-on 是设计基准值，
+   measure() 会按需覆写它们，故只在首次读取时记下上限 */
+function readBounds() {
+  MAX_DISC    = cssPx('--disc', 68);
+  MAX_DISC_ON = cssPx('--disc-on', 92);
+}
+
+function measure() {
+  // 窄屏时索引盘 display:none，高度为 0，用兜底值避免除零
+  var H = stage.clientHeight || 520;
+  var half = H / 2;
+
+  // 圆框是固定尺寸，不随视口连续缩放。
+  // 只有当盘面矮到装不下时才整体等比缩小，避免相邻圆重叠。
+  var room  = (H - NAME_H * 2) / (NEAR * 2 + 1);   // 每个卡位能分到的高度
+  var scale = Math.min(1, room / (MAX_DISC_ON / PACK));
+  DISC_ON = MAX_DISC_ON * scale;
+  DISC    = MAX_DISC * scale;
+
+  // 间距同样固定，仅在缩放时一起收紧
+  GAP = (MAX_DISC_ON / PACK) * scale;
+
+  // 写回 CSS，样式与几何共用同一组尺寸
+  layout.style.setProperty('--disc', DISC.toFixed(1) + 'px');
+  layout.style.setProperty('--disc-on', DISC_ON.toFixed(1) + 'px');
+
+  // 选中项圆心距左缘 = 半径 + 一圈边距，保证放大后不贴边
+  NODE_X = DISC_ON / 2 + DISC_ON * EDGE;
+  R = half * (1 + BOW * BOW) / (2 * BOW);          // 弓形高反解
+  STEP = Math.asin(Math.min(1, GAP / R)) * 180 / Math.PI;  // 弦长
+  SLOTS = NEAR * 2 + 1;                             // 卡槽 = 可见窗口
+  circle.style.left = -(R - NODE_X) + 'px';         // 圆心推到舞台左外
+}
+
+/* 卡槽 s（0..SLOTS-1）相对指针的位置：-NEAR..+NEAR */
+function slotRel(s)   { return s - NEAR; }
+function slotAngle(s) { return slotRel(s) * STEP; }
+
+/* 环形取模：任意整数映射回 0..N-1 */
+function wrap(i) { return ((i % N) + N) % N; }
+/* 通用环形取模，用于卡槽数组的循环移位 */
+function wrap2(i, n) { return ((i % n) + n) % n; }
+
+/* ---------- 骨架 ---------- */
+var spokes = [];
+function build() {
+  circle.innerHTML = '';
+  spokes = [];
+  for (var s = 0; s < SLOTS; s++) {
+    var sp = document.createElement('div');
+    sp.className = 'spoke';
+    sp.style.width = R + 'px';
+    sp.style.transform = 'rotate(' + slotAngle(s) + 'deg)';
+    circle.appendChild(sp);
+    spokes.push(sp);
+  }
+}
+
+/* ---------- 状态 ---------- */
+var idx = 0;        // 当前选中的项目下标
+var angle = 0;      // 盘面当前角度（动画量）
+var busy = false;
+
+/* 填充卡槽内容：以 base 为中心 */
+/* 给某个卡槽写入内容。sel 决定它是否为选中态。
+   不动 .on 之外的结构，避免重排造成的二次动画。 */
+/* 每个项目各自持有一个节点元素，创建后不再更换图片。
+   切换时只是把节点搬到别的辐条上，img 的 src 始终不变，
+   浏览器无需重新解码，因此不会有空窗期。 */
+var nodePool = [];
+
+/* 部分图标在某一主题下会与背景同色，故可另备一版 */
+function iconOf(p) {
+  var light = document.documentElement.getAttribute('data-theme') === 'light';
+  return (light && p.iconLight) ? p.iconLight : p.icon;
+}
+
+/* 切换主题时同步换图 */
+function refreshIcons() {
+  nodePool.forEach(function (n, i) {
+    if (!n) return;
+    var want = iconOf(items[i]);
+    var img = n.querySelector('img');
+    if (img && !img.src.endsWith(want)) img.src = want;
+  });
+}
+
+function nodeFor(i) {
+  var n = nodePool[i];
+  if (n) return n;
+
+  var p = items[i];
+  n = document.createElement('button');
+  n.type = 'button';
+  n.className = 'node';
+  n.setAttribute('role', 'option');
+  n.innerHTML = '<span class="disc"><img alt="" decoding="sync"></span>' +
+                '<span class="nm"></span>';
+  var img = n.querySelector('img');
+  img.src = iconOf(p);
+  img.alt = p.name;
+  n.querySelector('.nm').textContent = p.name;
+  n.onclick = function () { step(parseInt(n.dataset.rel, 10)); };
+  nodePool[i] = n;
+  return n;
+}
+
+function paintSlot(sp, i, rel, sel) {
+  var n = nodeFor(i);
+  if (n.parentNode !== sp) {
+    if (sp.firstChild && sp.firstChild !== n) sp.removeChild(sp.firstChild);
+    sp.appendChild(n);
+  }
+  n.dataset.rel = rel;
+  n.classList.add('show');
+  if (sel !== undefined) {
+    n.classList.toggle('on', sel);
+    n.setAttribute('aria-selected', sel ? 'true' : 'false');
+  }
+}
+
+function fill(base) {
+  spokes.forEach(function (sp, s) {
+    paintSlot(sp, wrap(base + slotRel(s)), slotRel(s), slotRel(s) === 0);
+  });
+  applyRotation();
+}
+
+/* 反向自转，保持节点水平 */
+function applyRotation() {
+  circle.style.transform = 'translateY(-50%) rotate(' + angle + 'deg)';
+  spokes.forEach(function (sp, s) {
+    var n = sp.firstChild;
+    if (n) n.style.transform =
+      'translate(50%,-50%) rotate(' + (-(slotAngle(s) + angle)) + 'deg)';
+  });
+}
+
+/* 详情面板 */
+function detailHTML(p) {
+  return '<h3>' + p.name + '</h3>' +
+    '<div class="sub">' + p.stack + (p.role ? ' · ' + p.role : '') + '</div>' +
+    '<p>' + p.desc + '</p>' +
+    (p.points && p.points.length
+      ? '<ul>' + p.points.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>'
+      : '') +
+    '<p style="margin:0"><a class="line mono" style="font-size:12px;letter-spacing:.14em" href="' +
+    p.url + '" target="_blank" rel="noopener">OPEN →</a></p>';
+}
+
+function paint(i) {
+  var el = document.getElementById('detail');
+  el.innerHTML = '<div class="inner">' + detailHTML(items[i]) + '</div>';
+}
+
+/* 交叉淡出：转盘启动时立刻让旧文字退场 */
+function fadeOut() {
+  var inner = document.querySelector('.detail .inner');
+  if (inner) inner.classList.add('out');
+}
+
+/* 换上新文字并淡入 */
+function fadeIn(i) {
+  var el = document.getElementById('detail');
+  var inner = document.createElement('div');
+  inner.className = 'inner in';
+  inner.innerHTML = detailHTML(items[i]);
+  el.innerHTML = '';
+  el.appendChild(inner);
+  void inner.offsetWidth;              // 强制重排，让 in 状态生效
+  inner.classList.remove('in');
+}
+
+/* ---------- 转动：点第 k 个邻居就转 k 格 ---------- */
+var DUR = 420;
+
+function step(k) {
+  if (busy || !k) return;
+  busy = true;
+
+  var target = -k * STEP;                 // 转盘要转到的角度
+  var t0 = null;
+
+  // 选中态在转动途中就交接：旧的缩回、新的胀大，与盘面同步演进。
+  // 落位时不会再改动它们，所以这个过渡只播一次。
+  var incoming = spokes[NEAR + k];        // 即将转到指针处的那个卡槽
+  spokes.forEach(function (sp) {
+    var n = sp.firstChild;
+    if (!n) return;
+    var sel = (sp === incoming);
+    n.classList.toggle('on', sel);
+    n.setAttribute('aria-selected', sel ? 'true' : 'false');
+  });
+
+  fadeOut();                              // 文字与盘面同时开始交接
+
+  function ease(t) {                       // CAD 式收尾，不回弹
+    return t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+  }
+
+  function frame(ts) {
+    if (t0 === null) t0 = ts;
+    var t = Math.min(1, (ts - t0) / DUR);
+    angle = target * ease(t);
+    applyRotation();
+    if (t < 1) { requestAnimationFrame(frame); return; }
+
+    // 落位：不重排 DOM，而是把辐条数组循环移位 k 格。
+    // 选中的仍是同一个元素，.on 不被摘掉，动画不会重播。
+    idx = wrap(idx + k);
+    angle = 0;
+
+    var n2 = spokes.length;
+    var rotated = [];
+    for (var s = 0; s < n2; s++) rotated.push(spokes[wrap2(s + k, n2)]);
+    spokes = rotated;
+
+    // 辐条回到各自的固定角度，并刷新内容。
+    // 中心那个跳过：它已带 .on，重写会打断正在进行的放大过渡。
+    spokes.forEach(function (sp, s) {
+      sp.style.transform = 'rotate(' + slotAngle(s) + 'deg)';
+      var rel = slotRel(s);
+      if (rel === 0) {
+        if (sp.firstChild) sp.firstChild.dataset.rel = 0;
+      } else {
+        paintSlot(sp, wrap(idx + rel), rel, false);
+      }
+    });
+    applyRotation();
+
+    fadeIn(idx);
+    busy = false;
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 轨迹 ---------- */
+function drawTrack() {
+  var svg = document.getElementById('track');
+  var w = stage.clientWidth, h = stage.clientHeight;
+  var cx = -(R - NODE_X), cy = h / 2;
+  var ns = 'http://www.w3.org/2000/svg';
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.innerHTML = '';
+
+  function el(t, a) {
+    var e = document.createElementNS(ns, t);
+    for (var k in a) e.setAttribute(k, a[k]);
+    return e;
+  }
+  function pt(deg, r) {
+    var t = deg * Math.PI / 180;
+    return [cx + Math.cos(t) * r, cy + Math.sin(t) * r];
+  }
+
+  var span = Math.min(
+    Math.asin(Math.min(1, (cy + 70) / R)) * 180 / Math.PI,
+    STEP * (NEAR + 0.75)
+  );
+
+  var a = pt(-span, R), b = pt(span, R);
+  svg.appendChild(el('path', {
+    d: 'M' + a[0] + ',' + a[1] + ' A' + R + ',' + R + ' 0 0 1 ' + b[0] + ',' + b[1],
+    class: 'rail'
+  }));
+
+  var off = 58;
+  var c = pt(-span, R + off), d = pt(span, R + off);
+  svg.appendChild(el('path', {
+    d: 'M' + c[0] + ',' + c[1] + ' A' + (R+off) + ',' + (R+off) + ' 0 0 1 ' + d[0] + ',' + d[1],
+    class: 'rail-dash'
+  }));
+
+  for (var k = -NEAR - 1; k <= NEAR + 1; k++) {
+    var deg = k * STEP;
+    if (Math.abs(deg) > span) continue;
+    var major = (k === 0);
+    var p0 = pt(deg, R + off), p1 = pt(deg, R + off - (major ? 15 : 7));
+    svg.appendChild(el('line', {
+      x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1],
+      class: 'gauge' + (major ? ' major' : '')
+    }));
+  }
+}
+
+/* ---------- 初始化 / 尺寸变化 ---------- */
+function relayout() {
+  if (MAX_DISC_ON === undefined) readBounds();   // 只在被覆写前读一次
+  measure();
+  build();
+  drawTrack();
+  angle = 0;
+  fill(idx);
+}
+if (window.ResizeObserver) new ResizeObserver(relayout).observe(stage);
+else window.addEventListener('resize', relayout);
+
+stage.addEventListener('keydown', function (ev) {
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowRight') { ev.preventDefault(); step(1); }
+  if (ev.key === 'ArrowUp'   || ev.key === 'ArrowLeft')  { ev.preventDefault(); step(-1); }
+});
+
+// 预先建好全部节点并解码图片，首次转动也不必等
+items.forEach(function (_, i) { nodeFor(i); });
+
+relayout();
+paint(idx);
+
+</script>
+</body>
+</html>
