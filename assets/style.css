@@ -615,3 +615,46 @@ body.reading > main.wrap {
 
 /* 项目页：索引盘需要横向空间，放宽容器上限 */
 body.wide > main.wrap { max-width: 1180px; }
+
+/* ---------- 竖屏 / 窄屏：解除一屏锁定，回归正常滚动 ---------- */
+/* 一页一屏依赖足够的宽高：竖屏两者都不够，顶栏与正文会被
+   overflow:hidden 硬切且无法滚动。此处整体回退为常规文档流。 */
+@media (orientation: portrait), (max-width: 720px) {
+  html, body {
+    height: auto;
+    overflow: visible;
+  }
+  body { display: block; }
+
+  body > main.wrap {
+    display: block;
+    overflow: visible;
+    padding-top: 32px;
+    padding-bottom: 48px;
+  }
+  body > main.wrap > section { margin-top: 0; margin-bottom: 0; }
+  body > main.wrap > section ~ section { margin-top: 48px; }
+
+  /* 顶栏换行排布，导航不再挤在一行 */
+  .topbar .wrap {
+    height: auto;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .nav { margin-left: 0; width: 100%; flex-wrap: wrap; gap: 14px; }
+  .nav .themetoggle { margin-left: auto; }
+
+  /* 标题与注记允许折行，不再被裁切 */
+  .dim-h { flex-wrap: wrap; gap: 6px 12px; margin-bottom: 20px; }
+  .dim-h h2 { white-space: normal; font-size: 21px; }
+  .dim-h .note { white-space: normal; overflow: visible; flex-basis: 100%; }
+  .dim-h .rule { display: none; }
+
+  .hero h1 { font-size: clamp(28px, 8.5vw, 40px); }
+  .card-meta { white-space: normal; }
+
+  footer { margin-top: 40px; padding: 16px 0 24px; }
+  footer .wrap { flex-direction: column; gap: 6px; }
+}
