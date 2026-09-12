@@ -77,9 +77,15 @@ function navIndex(current) {
   return -1;
 }
 
+/* 竖屏与窄屏下页面回归常规滚动，滚动翻页会与之冲突 */
+function pageFlipEnabled() {
+  return !matchMedia('(orientation: portrait), (max-width: 720px)').matches;
+}
+
 function bindPageFlip(current) {
   var i = navIndex(current);
   if (i < 0) return;
+  if (!pageFlipEnabled()) return;
 
   var prev = NAV[i - 1] ? NAV[i - 1].href : null;
   var next = NAV[i + 1] ? NAV[i + 1].href : null;
@@ -102,6 +108,8 @@ function bindPageFlip(current) {
 
   function push(dy) {
     if (fired) return;
+    // 旋转屏幕后可能已切到常规滚动模式，此时不再翻页
+    if (!pageFlipEnabled()) { acc = 0; return; }
     // 换方向就清零，避免上下抖动累加
     if (dy * acc < 0) acc = 0;
     acc += dy;
